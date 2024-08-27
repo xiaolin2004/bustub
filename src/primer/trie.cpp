@@ -1,13 +1,13 @@
 #include "primer/trie.h"
 #include <memory>
 #include <string_view>
+#include <utility>
 #include "common/exception.h"
 
 namespace bustub {
 
 template <class T>
 auto Trie::Get(std::string_view key) const -> const T * {
-  throw NotImplementedException("Trie::Get is not implemented.");
   auto aux = this->GetRoot();
   for (auto bg = key.begin(); bg != key.end(); bg++) {
     auto child = aux->children_.find(*bg);
@@ -31,15 +31,58 @@ auto Trie::Get(std::string_view key) const -> const T * {
 template <class T>
 auto Trie::Put(std::string_view key, T value) const -> Trie {
   // Note that `T` might be a non-copyable type. Always use `std::move` when creating `shared_ptr` on that value.
-  throw NotImplementedException("Trie::Put is not implemented.");
+  auto _new_root = this->GetRoot()->Clone();
+  std::shared_ptr<TrieNode> aux = std::move(_new_root);
+  auto new_root = aux;
+  for (char bg : key) {
+    auto child = aux->children_.find(bg);
+    if (child != aux->children_.end() && child->second->is_value_node_) {
+      auto new_child = child->second->Clone();
+      std::shared_ptr<TrieNode> ptr = std::move(new_child);
+      aux->children_[bg] = ptr;
+      aux = ptr;
+    } else {  // finding the first absent node
+      auto new_node =
+          std::make_shared<TrieNodeWithValue<T>>(TrieNodeWithValue<T>(std::make_shared<T>(std::move(value))));
+      aux->children_[bg] = new_node;
+      aux = new_node;
+      // copy the visiting node(inherit the map to reuse the children node)
+      // construct new node for remaining path
+      // remake the upper node till getting to the root
+    }
+  }
+  return Trie(new_root);
 
   // You should walk through the trie and create new nodes if necessary. If the node corresponding to the key already
   // exists, you should create a new `TrieNodeWithValue`.
 }
 
 auto Trie::Remove(std::string_view key) const -> Trie {
-  throw NotImplementedException("Trie::Remove is not implemented.");
-
+  auto _new_root = this->GetRoot()->Clone();
+  std::shared_ptr<TrieNode> aux = std::move(_new_root);
+  auto new_root = aux;
+  for (auto bg = key.begin(); bg != key.end() - 1; bg++) {
+    auto child = aux->children_.find(*bg);
+    if (child != aux->children_.end() && child->second->is_value_node_) {
+      auto new_child = child->second->Clone();
+      std::shared_ptr<TrieNode> ptr = std::move(new_child);
+      aux->children_[*bg] = ptr;
+      aux = ptr;
+    } else {
+      return *this;
+    }
+  }
+  auto child = aux->children_.find(*key.rbegin());
+  if (child != aux->children_.end() && child->second->is_value_node_) {
+    if (child->second->children_.empty()) {
+      aux->children_.erase(child);
+    } else {
+      auto new_child = child->second->Clone();
+      new_child->is_value_node_ = false;
+      aux->children_[*key.rbegin()] = std::shared_ptr<TrieNode>(std::move(new_child));
+    }
+  }
+  return Trie(new_root);
   // You should walk through the trie and remove nodes if necessary. If the node doesn't contain a value any more,
   // you should convert it to `TrieNode`. If a node doesn't have children any more, you should remove it.
 }
